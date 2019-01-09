@@ -16,21 +16,8 @@ use \PDO;
  */
 function get($id) {
 
-  SELECT * FROM UTILISATEUR WHERE $id = IDUTILISATEUR;
-    return (object) array(
-        "id" => ,
-        "username" => ,
-        "name" => ,
-        "password" => ,
-        "email" => ,
-        "avatar" =>
-    );
-}
-
-function get($id) {
-
     $db = \Db::dbc();
-    $query = $db->prepare('SELECT * FROM User WHERE IDUTILISATEUR = :idParam');
+    $query = $db->prepare('SELECT * FROM user WHERE idUser = :idParam');
 
     $query->bindValue(':idParam', $id);
 
@@ -44,9 +31,9 @@ function get($id) {
         $o = (object) array(
             "id" => $data[0]['idUser'],
             "username" => $data[0]['username'],
-            "name" => $data[0]['displayName'],
-            "password" => $data[0]['pwd'],
-            "email" => $data[0]['email'],
+            "name" => $data[0]['name'],
+            "password" => $data[0]['password'],
+            "email" => $data[0]['mail'],
             "avatar" => $data[0]['avatar']
         );
         return $o;
@@ -69,7 +56,26 @@ function get($id) {
  * @warning this function hashes the password
  */
 function create($username, $name, $password, $email, $avatar_path) {
-    return 1337;
+    $db = \Db::dbc();
+    
+    $query_str = "INSERT INTO user
+    			  (username, name, password, mail, avatar, dateSign) VALUES
+    			  (:username, :name, :password, :mail, :avatar, :dateSign)";
+	$query = $db->prepare($query_str);
+	$date = new \DateTime("NOW");
+	
+	if ($query->execute(array(':username'=>$username,
+							  ':name'=>$name,
+							  ':password'=>hash_password($password),
+							  ':mail' => $email,
+							  ':avatar' =>$avatar_path,
+							  ':dateSign' => $date->format('Y-m-d H:i:s'))) == FALSE )
+	{
+		return NULL;
+	} 
+	
+	$last_id = $db->lastInsertId();		  
+	return $last_id; 
 }
 
 /**
@@ -114,7 +120,7 @@ function destroy($id) {
  * @return the hashed password
  */
 function hash_password($password) {
-    return $password;
+    return md5($password);
 }
 
 /**
@@ -182,7 +188,12 @@ function get_stats($uid) {
  * @warning this function must perform the password hashing
  */
 function check_auth($username, $password) {
-    return null;
+    $db = \Db::dbc();
+    
+    $query_str = "SELECT idUser, username, name, password, avatar
+    			  FROM user
+    			  WHERE username = :username";
+    $query_str->bindValue(':username)
 }
 
 /**
