@@ -14,7 +14,8 @@ use \PDO;
  * @param id the id of the user in db
  * @return an object containing the attributes of the user or null if error or the user doesn't exist
  */
-function get($id) {
+function get($id) 
+{
 
     $db = \Db::dbc();
     $query = $db->prepare('SELECT * FROM user WHERE idUser = :idParam');
@@ -23,18 +24,18 @@ function get($id) {
 
     try {
         $query->execute();
-        $data = $query->fetchAll(PDO::FETCH_ASSOC);
+        $data = $query->fetch();
 
         if ($data == NULL)
             return NULL;
 
         $o = (object) array(
-            "id" => $data[0]['idUser'],
-            "username" => $data[0]['username'],
-            "name" => $data[0]['name'],
-            "password" => $data[0]['password'],
-            "email" => $data[0]['mail'],
-            "avatar" => $data[0]['avatar']
+            "id" => $data['idUser'],
+            "username" => $data['username'],
+            "name" => $data['name'],
+            "password" => $data['password'],
+            "email" => $data['mail'],
+            "avatar" => $data['avatar']
         );
         return $o;
     }
@@ -86,7 +87,21 @@ function create($username, $name, $password, $email, $avatar_path) {
  * @param email the user's email
  * @warning this function doesn't need to check whether a user with a similar username exists
  */
-function modify($uid, $username, $name, $email) {
+function modify($uid, $username, $name, $email) 
+{
+
+	$db = \Db::dbc();
+    
+    $query_str = "UPDATE user
+    			  SET username = :username, name = :name, mail = :mail
+    			  WHERE idUser = :idUser;";
+
+	$query = $db->prepare($query_str);
+	$query->bindValue(":username", $username);
+	$query->bindValue(":name", $name);
+	$query->bindValue(":mail", $email);
+	$query->bindValue(":idUser", $uid);
+	$query->execute();
 }
 
 /**
@@ -95,7 +110,22 @@ function modify($uid, $username, $name, $email) {
  * @param new_password the new password
  * @warning this function has to hash the password
  */
-function change_password($uid, $new_password) {
+
+function change_password($uid, $new_password) 
+{
+
+	$db = \Db::dbc();
+    
+    $query_str = "UPDATE user
+    			  SET password = :password
+    			  WHERE idUser = :idUser;";
+    $new_hashed_pwd = hash_password($new_password);
+
+	$query = $db->prepare($query_str);
+	$query->bindValue(":password", $new_hashed_pwd);
+	$query->bindValue(":idUser", $uid);
+	$query->execute();
+
 }
 
 /**
@@ -111,7 +141,25 @@ function change_avatar($uid, $avatar_path) {
  * @param id the id of the user to delete
  * @return true if the user has been correctly deleted, false else
  */
-function destroy($id) {
+function destroy($id) 
+{
+
+	$db = \Db::dbc();
+    
+    $query_str = "DELETE FROM user
+    			  WHERE idUser = :idUser;";
+
+	$query = $db->prepare($query_str);
+	$query->bindValue(":idUser", $id);
+	try
+	{
+		$query->execute();
+		return TRUE;
+	}
+	catch(PDOException $e) {
+        echo $e;
+        return FALSE;
+    }
 }
 
 /**
@@ -136,8 +184,17 @@ function search($string) {
  * List users
  * @return an array of the objects of every users
  */
-function list_all() {
-    return [get(1)];
+function list_all() 
+{
+    $db = \Db::dbc();
+    $query = $db->prepare('SELECT * FROM user');
+
+    $query->execute();
+    $data = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($data == NULL) return NULL;
+	var_dump($data);
+    return $data;
 }
 
 /**
@@ -190,10 +247,35 @@ function get_stats($uid) {
 function check_auth($username, $password) {
     $db = \Db::dbc();
     
-    $query_str = "SELECT idUser, username, name, password, avatar
+    $hashed_pwd = hash_password($password);
+    $query_str = "SELECT idUser, username, name, mail, password, avatar
     			  FROM user
-    			  WHERE username = :username";
-    $query_str->bindValue(':username)
+    			  WHERE username = :username AND password = :password;";
+    
+	try {
+		$query = $db->prepare($query_str);
+		$query->bindValue(':username', $username, PDO::PARAM_STR);
+		$query->bindValue(':password', $hashed_pwd, PDO::PARAM_STR);
+        $query->execute();
+        $data = $query->fetch();
+      
+        if ($data == NULL)
+            return NULL;
+
+        $o = (object) array(
+            "id" => $data['idUser'],
+            "username" => $data['username'],
+            "name" => $data['name'],
+            "email" => $data['mail'],
+            "password" => $data['password'],
+            "avatar" => $data['avatar']
+        );
+        return $o;
+    }
+    catch(PDOException $e) {
+        echo $e;
+        return NULL;
+    }
 }
 
 /**
@@ -203,7 +285,38 @@ function check_auth($username, $password) {
  * @return the user object or null if authentification failed
  */
 function check_auth_id($id, $password) {
-    return null;
+    $db = \Db::dbc();
+    
+    $query_str = "SELECT idUser, username, name, mail, password, avatar
+    			  FROM user
+    			  WHERE idUser = :idUser AND password = :password;";
+    
+	try {
+		$query = $db->prepare($query_str);
+		$query->bindValue(':idUser', $id, PDO::PARAM_INT);
+		$query->bindValue(':password', $password, PDO::PARAM_STR);
+        $query->execute();
+        $data = $query->fetch();
+        
+        var_dump($data);
+
+        if ($data == NULL)
+            return NULL;
+
+        $o = (object) array(
+            "id" => $data['idUser'],
+            "username" => $data['username'],
+            "name" => $data['name'],
+            "email" => $data['mail'],
+            "password" => $data['password'],
+            "avatar" => $data['avatar']
+        );
+        return $o;
+    }
+    catch(PDOException $e) {
+        echo $e;
+        return NULL;
+    }
 }
 
 /**
