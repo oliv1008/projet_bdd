@@ -177,7 +177,28 @@ function hash_password($password) {
  * @return an array of find objects
  */
 function search($string) {
-    return [get(1)];
+    $db = \Db::dbc();
+    $query = $db->prepare('SELECT * FROM user WHERE name LIKE :string1 OR username LIKE :string2');
+    $query->bindValue(":string1", '%'.$string.'%');
+    $query->bindValue(":string2", '%'.$string.'%');
+    $users = [];
+
+    $query->execute();
+    while($row = $query->fetch())
+    {
+    	$user = (object)array
+		(
+			"id" => $row['idUser'],
+			"username" => $row['username'],
+			"name" => $row['name'],
+			"password" => $row['password'],
+			"email" => $row['mail'],
+			"avatar" => $row['avatar']
+		);
+    	$users[] = $user;
+    }
+
+	return $users;
 }
 
 /**
@@ -188,13 +209,24 @@ function list_all()
 {
     $db = \Db::dbc();
     $query = $db->prepare('SELECT * FROM user');
+    $users = [];
 
     $query->execute();
-    $data = $query->fetchAll(PDO::FETCH_ASSOC);
+    while($row = $query->fetch())
+    {
+    	$user = (object)array
+		(
+			"id" => $row['idUser'],
+			"username" => $row['username'],
+			"name" => $row['name'],
+			"password" => $row['password'],
+			"email" => $row['mail'],
+			"avatar" => $row['avatar']
+		);
+    	$users[] = $user;
+    }
 
-    if ($data == NULL) return NULL;
-	var_dump($data);
-    return $data;
+	return $users;
 }
 
 /**
@@ -202,8 +234,25 @@ function list_all()
  * @param username the searched user's username
  * @return the user object or null if the user doesn't exist
  */
-function get_by_username($username) {
-    return get(1);
+function get_by_username($username) 
+{
+	$db = \Db::dbc();
+    $query = $db->prepare('SELECT * FROM user WHERE username = :username');
+    $query->bindValue(":username", $username);
+    $query->execute();
+    $result = $query->fetch();
+    if ($result == NULL) return NULL;
+    $user = (object)array
+    (
+    	"id" => $result["idUser"],
+    	"username" => $result["username"],
+    	"name" => $result["name"],
+    	"password" => $result["password"],
+    	"email" => $result["mail"],
+    	"avatar" => $result["avatar"]
+    );
+    
+    return $user;
 }
 
 /**
@@ -212,7 +261,26 @@ function get_by_username($username) {
  * @return a list of users objects
  */
 function get_followers($uid) {
-    return [get(2)];
+   	$db = \Db::dbc();
+    $query = $db->prepare("SELECT u.* FROM user u INNER JOIN follow f ON u.idUser = f.idUser_to WHERE f.idUser_from = :uid");
+    $query->bindValue(":uid", $uid);
+    $query->execute();
+    $users = [];
+ 	while($result = $query->fetch())
+ 	{
+ 		$user = (object)array
+		(
+			"id" => $result['idUser'],
+			"username" => $result['username'],
+			"name" => $result['name'],
+			"password" => $result['password'],
+			"email" => $result['mail'],
+			"avatar" => $result['avatar']
+		);
+    	$users[] = $user;
+ 	}
+ 	
+ 	return $users;
 }
 
 /**
@@ -221,7 +289,26 @@ function get_followers($uid) {
  * @return a list of users objects
  */
 function get_followings($uid) {
-    return [get(2)];
+   	$db = \Db::dbc();
+    $query = $db->prepare("SELECT u.* FROM user u INNER JOIN follow f ON u.idUser = f.idUser_from WHERE f.idUser_to = :uid");
+    $query->bindValue(":uid", $uid);
+    $query->execute();
+    $users = [];
+ 	while($result = $query->fetch())
+ 	{
+ 		$user = (object)array
+		(
+			"id" => $result['idUser'],
+			"username" => $result['username'],
+			"name" => $result['name'],
+			"password" => $result['password'],
+			"email" => $result['mail'],
+			"avatar" => $result['avatar']
+		);
+    	$users[] = $user;
+ 	}
+ 	
+ 	return $users;
 }
 
 /**
@@ -298,7 +385,6 @@ function check_auth_id($id, $password) {
         $query->execute();
         $data = $query->fetch();
         
-        var_dump($data);
 
         if ($data == NULL)
             return NULL;
@@ -325,6 +411,11 @@ function check_auth_id($id, $password) {
  * @param id_to_follow the user's id to follow
  */
 function follow($id, $id_to_follow) {
+	$db = \Db::dbc();
+	$query = $db->prepare("INSERT INTO follow(idUser_to, idUser_from) VALUES(:id, :id_to_follow)");
+	$query->bindValue(":id", $id);
+	$query->bindValue(":id_to_follow", $id_to_follow);
+	$query->execute();
 }
 
 /**
@@ -333,4 +424,9 @@ function follow($id, $id_to_follow) {
  * @param id_to_follow the user's id to unfollow
  */
 function unfollow($id, $id_to_unfollow) {
+	$db = \Db::dbc();
+	$query = $db->prepare("DELETE FROM follow WHERE idUser_to = :id AND idUser_from = :id_to_unfollow");
+	$query->bindValue(":id", $id);
+	$query->bindValue(":id_to_unfollow", $id_to_unfollow);
+	$query->execute();
 }
