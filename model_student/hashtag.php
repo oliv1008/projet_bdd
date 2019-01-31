@@ -15,6 +15,19 @@ use \PDO;
  * @param hashtag_name the name of the hashtag to attach
  */
 function attach($pid, $hashtag_name) {
+	$db = Db::dbc();
+
+	$query = $db->prepare("INSERT INTO hashtag(nameHashtag) VALUES(:hashtag_name)");
+	$query->bindValue(":hashtag_name", $hashtag_name);
+	$query->execute();
+		
+	$idHashtag = $db->lastInsertId();
+		
+	$query = $db->prepare("INSERT INTO useHashtag(idHashtag, idTweet) VALUES(:idHashtag, :pid)");
+	$query->bindValue(":idHashtag", $idHashtag);
+	$query->bindValue(":pid", $pid);
+	$query->execute();
+	return true;
 }
 
 /**
@@ -22,7 +35,19 @@ function attach($pid, $hashtag_name) {
  * @return a list of hashtags names
  */
 function list_hashtags() {
-    return ["Test"];
+	$db = \Db::dbc();
+
+    $hashtags = [];
+
+    $query = $db->prepare("SELECT DISTINCT nameHashtag FROM hashtag");
+    $query->execute();
+
+    while ($result = $query->fetch())
+    {
+      $hashtags[] = $result["nameHashtag"];
+    }
+
+    return $hashtags;
 }
 
 /**
@@ -31,7 +56,20 @@ function list_hashtags() {
  * @return a list of hashtags
  */
 function list_popular_hashtags($length) {
-    return ["Hallo"];
+	$db = \Db::dbc();
+
+    $hashtags = [];
+  
+    $query = $db->prepare("SELECT nameHashtag FROM hashtag GROUP BY nameHashtag ORDER BY count(nameHashtag) DESC");
+    $query->execute();
+  
+    while (($result = $query->fetch()) && $length > 0) 
+    {
+    	$length = $length - 1;
+   		$hashtags[] = $result["nameHashtag"];
+    }
+    var_dump($hashtags);            
+    return $hashtags;
 }
 
 /**
@@ -40,7 +78,27 @@ function list_popular_hashtags($length) {
  * @return a list of posts objects or null if the hashtag doesn't exist
  */
 function get_posts($hashtag_name) {
-    return [\Model\Post\get(1)];
+	$db = \Db::dbc();
+
+    $posts = [];
+
+    $query = $db->prepare("SELECT DISTINCT t.* FROM hashtag NATURAL JOIN tweet t WHERE nameHashtag LIKE :hashtag_name");
+    $query->bindValue(":hashtag_name", "%".$hashtag_name."%");
+    $query->execute();
+
+    while ($result = $query->fetch())
+    {
+        $post = (object) array
+    	(
+        	"id" => $result["idTweet"],
+            "text" => $result["content"],
+            "date" => $result["dateTweet"],
+            "author" => \Model\User\get($result["idUser"])
+    	);
+    	$posts[] = $post;
+    }
+
+    return $posts;
 }
 
 /** Get related hashtags

@@ -241,7 +241,7 @@ function list_user_posts($id, $date_sorted="DESC") {
   	{
     	$post = (object) array
     	(
-        	"id" => $result["idTweet"],
+            "id" => $result["idTweet"],
             "text" => $result["content"],
             "date" => $result["dateTweet"],
             "author" => \Model\User\get($result["idUser"])
