@@ -2,13 +2,14 @@
 
 CREATE TABLE IF NOT EXISTS user
 (
-   idUser INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+   idUser INTEGER NOT NULL AUTO_INCREMENT,
    username VARCHAR(255) NULL,
    name VARCHAR(255) NULL,
    mail VARCHAR(255) NULL,
    password VARCHAR(255) NULL,
    avatar VARCHAR(255) NULL,
-   dateSign DATETIME NULL
+   dateSign DATETIME NULL,
+   PRIMARY KEY (idUser)
 );
 
 # ----- TABLE : tweet

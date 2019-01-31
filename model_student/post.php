@@ -17,12 +17,22 @@ use \PDO;
  * @warning the date attribute is a DateTime object
  */
 function get($id) {
-    return (object) array(
-        "id" => 1337,
-        "text" => "Text",
-        "date" => new \DateTime('2011-01-01T15:03:01'),
-        "author" => \Model\User\get(2)
-    );
+    $db = \Db::dbc();
+
+    $query = $db->prepare("SELECT * FROM tweet WHERE idTweet = :id");
+    $query->bindValue(":id", $id);
+    $query->execute();
+    $result = $query->fetch();
+    if ($result == NULL) return NULL;
+  	$post = (object) array
+	(
+		"id" => $result["idTweet"],
+		"text" => $result["content"],
+		"date" => $result["dateTweet"],
+		"author" => \Model\User\get($result["idUser"])
+	);
+  
+    return $post;
 }
 
 /**
@@ -36,15 +46,26 @@ function get($id) {
  * @warning the responds_to attribute is either null (if the post is not a response) or a post object
  */
 function get_with_joins($id) {
-    return (object) array(
-        "id" => 1337,
-        "text" => "Ima writing a post !",
-        "date" => new \DateTime('2011-01-01T15:03:01'),
-        "author" => \Model\User\get(2),
-        "likes" => [],
-        "hashtags" => [],
-        "responds_to" => null
-    );
+    $db = \Db::dbc();
+
+	
+    $query = $db->prepare("SELECT * FROM tweet WHERE idTweet = :id");
+    $query->bindValue(":id", $id);
+    $query->execute();
+    $result = $query->fetch();
+    if ($result == NULL) return NULL;
+    $post = (object) array
+	(
+		"id" => $result["idTweet"],
+		"text" => $result["content"],
+		"date" => $result["dateTweet"],
+		"author" => \Model\User\get($result["idUser"])
+	);
+	$post->responds_to = get($result["idTweet_to"]);
+	$post->likes = get_likes($post->id);
+	$post->hashtags = [];
+  
+    return $post;
 }
  
 /**
@@ -60,7 +81,28 @@ function get_with_joins($id) {
  * @warning this function takes care to rollback if one of the queries comes to fail.
  */
 function create($author_id, $text, $response_to=null) {
-    return 1337;
+	$db = \Db::dbc();
+	$query = $db->prepare("INSERT INTO tweet(idUser, idTweet_to, content, dateTweet) VALUES(:author_id, :response_to, :text, now())");
+	$query->bindValue(":author_id", $author_id);
+	$query->bindValue(":response_to", $response_to);
+	$query->bindValue(":text", $text);
+	$query->execute();
+	$idPost = $db->lastInsertId();
+	
+	$userMentionned = extract_mentions($text);
+	foreach ($userMentionned as $username) 
+	{
+		$user = \Model\User\get_by_username(ltrim($username, '@'));
+		if($user && $user->id)
+			mention_user($idPost, $user->id);
+	}
+	$hashtags = extract_hashtags($text);
+	foreach ($hashtags as $hashtag) 
+	{
+		\Model\Hashtag\attach($idPost, $hashtag);
+	}
+	
+	return $idPost;
 }
 
 /**
@@ -69,6 +111,13 @@ function create($author_id, $text, $response_to=null) {
  * @param uid the user id to mention
  */
 function mention_user($pid, $uid) {
+	$db = Db::dbc();
+
+    $query = $db->prepare("INSERT INTO mention (idUser, idTweet) VALUES(:uid, :pid)");
+    $query->bindValue(":uid", $uid);
+    $query->bindValue(":pid", $pid);
+    $query->execute();
+    return true;
 }
 
 /**
@@ -77,7 +126,27 @@ function mention_user($pid, $uid) {
  * @return the array of user objects mentioned
  */
 function get_mentioned($pid) {
-    return [];
+    $db = \Db::dbc();
+	
+	$users = [];
+	$query = $db->prepare("SELECT * FROM mention m INNER JOIN user u ON u.idUser = m.idUser WHERE m.idTweet = :pid");
+	$query->bindValue(":pid", $pid);
+	$query->execute();
+	while ($result = $query->fetch()) 
+	{
+		$user = (object)array
+		(
+			"id" => $result['idUser'],
+			"username" => $result['username'],
+			"name" => $result['name'],
+			"password" => $result['password'],
+			"email" => $result['mail'],
+			"avatar" => $result['avatar']
+		);
+		$users[] = $user;
+	}
+	
+	return $users;
 }
 
 /**
@@ -85,6 +154,12 @@ function get_mentioned($pid) {
  * @param id the id of the post to delete
  */
 function destroy($id) {
+	$db = Db::dbc();
+
+    $query = $db->prepare("DELETE FROM tweet WHERE idTweet = :id");
+    $query->bindValue(":id", $id);
+    $query->execute();
+    return true;
 }
 
 /**
@@ -93,7 +168,24 @@ function destroy($id) {
  * @return an array of find objects
  */
 function search($string) {
-    return [];
+    $db = Db::dbc();
+
+    $posts = [];
+    $query = $db->prepare("SELECT * FROM tweet WHERE content LIKE :string");
+    $query->bindValue(":string", "%".$string."%");
+    $query->execute();
+    while ($result = $query->fetch()) 
+    {
+   		$post = (object) array
+     	(
+        	"id" => $result["idTweet"],
+            "text" => $result["content"],
+            "date" => $result["dateTweet"],
+            "author" => \Model\User\get($result["idUser"])
+     	);
+     	$posts[] = $post;
+    }
+    return $posts;
 }
 
 /**
@@ -102,7 +194,28 @@ function search($string) {
  * @return an array of the objects of each post
  */
 function list_all($date_sorted=false) {
-    return [];
+    $db = \Db::dbc();
+    if($date_sorted == "ASC")
+        $query = $db->prepare("SELECT * FROM tweet ORDER BY dateTweet ASC");
+    else if($date_sorted == "DESC")
+        $query = $db->prepare("SELECT * FROM tweet ORDER BY dateTweet DESC");
+    else
+        $query = $db->prepare("SELECT * FROM tweet ORDER BY dateTweet");
+
+    $query->execute();
+
+    while ($result = $query->fetch())
+    {
+      $post = (object) array
+      (
+            "id" => $result["idTweet"],
+            "text" => $result["content"],
+            "date" => $result["dateTweet"],
+            "author" => \Model\User\get($result["idUser"])
+          );
+          $posts[] = $post;
+    }
+    return $posts;
 }
 
 /**
@@ -112,7 +225,30 @@ function list_all($date_sorted=false) {
  * @return the list of posts objects
  */
 function list_user_posts($id, $date_sorted="DESC") {
-    return [];
+	$db = \Db::dbc();
+
+	
+  	if($date_sorted == 'ASC')
+  		$query = $db->prepare("SELECT * FROM tweet WHERE idUser = :id ORDER BY dateTweet ASC");
+	else if($date_sorted == 'DESC')
+    	$query = $db->prepare("SELECT * FROM tweet WHERE idUser = :id ORDER BY dateTweet DESC");
+  	else
+    	$query = $db->prepare("SELECT * FROM tweet WHERE idUser = :id ORDER BY dateTweet");
+
+  	$query->execute();
+
+ 	while ($result = $query->fetch())
+  	{
+    	$post = (object) array
+    	(
+        	"id" => $result["idTweet"],
+            "text" => $result["content"],
+            "date" => $result["dateTweet"],
+            "author" => \Model\User\get($result["idUser"])
+    	);
+    	$posts[] = $post;
+  	}
+  	return $posts;
 }
 
 /**
@@ -121,7 +257,27 @@ function list_user_posts($id, $date_sorted="DESC") {
  * @return the users objects who liked the post
  */
 function get_likes($pid) {
-    return [];
+    $db = \Db::dbc();
+    
+    $users = [];
+    $query = $db->prepare("SELECT * FROM likeTweet NATURAL JOIN user WHERE likeTweet.idTweet = :pid");
+    $query->bindValue(':pid', $pid);
+    $query->execute();
+    
+    while($result = $query->fetch())
+    {
+    	$user = (object)array
+    	(
+        	"id" => $result['idUser'],
+            "username" => $result['username'],
+            "name" => $result['name'],
+            "password" => $result['password'],
+            "email" => $result['mail'],
+            "avatar" => $result['avatar']
+        );
+    	$users[] = $user;
+    }
+    return $users;
 }
 
 /**
@@ -130,7 +286,24 @@ function get_likes($pid) {
  * @return the posts objects which are a response to the actual post
  */
 function get_responses($pid) {
-    return [];
+    $db = Db::dbc();
+    
+    $posts = [];
+    $query = $db->prepare("SELECT * FROM tweet WHERE idTweet_To = :pid");
+    $query->bindValue(":pid", $pid);
+    $query->execute();
+    while ($result = $query->fetch()) 
+    {
+		$post = (object) array
+		(
+			"id" => $result["idTweet"],
+			"text" => $result["content"],
+			"date" => $result["dateTweet"],
+			"author" => \Model\User\get($result["idUser"])
+		);
+		$posts[] = $post;
+    }
+    return $posts;
 }
 
 /**
@@ -149,6 +322,15 @@ function get_stats($pid) {
  * @param pid the post's id to be liked
  */
 function like($uid, $pid) {
+    $db = \Db::dbc();
+
+    $query = $db->prepare("INSERT INTO likeTweet (idUser, idTweet) VALUES(:uid, :pid)");
+    $query->bindValue(':uid', $uid);
+    $query->bindValue(':pid', $pid);
+
+    $query->execute();
+
+    return true;
 }
 
 /**
@@ -157,5 +339,14 @@ function like($uid, $pid) {
  * @param pid the post's id to be unliked
  */
 function unlike($uid, $pid) {
+    $db = \Db::dbc();
+
+    $query = $db->prepare("DELETE FROM likeTweet WHERE idUser = :uid AND idTweet = :pid");
+    $query->bindValue(':uid', $uid);
+    $query->bindValue(':pid', $pid);
+    
+    $query->execute();
+    
+    return true;
 }
 
