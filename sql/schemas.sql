@@ -68,3 +68,19 @@ CREATE TABLE IF NOT EXISTS follow
    idUser_from INTEGER NOT NULL,
    PRIMARY KEY (idUser_to, idUser_from)
 );
+
+# ----- TABLE : notification
+
+CREATE TABLE IF NOT EXISTS notification
+(
+   idNotif INTEGER NOT NULL AUTO_INCREMENT,
+   idUser INTEGER NOT NULL,
+   type VARCHAR(255) NULL,
+   idTweet INTEGER NULL,
+   liked_by INTEGER NULL,
+   mentionned_by INTEGER NULL,
+   followed_by INTEGER NULL,
+   notif_date DATETIME NULL,
+   reading_date DATE NULL,
+   PRIMARY KEY (idNotif)
+);

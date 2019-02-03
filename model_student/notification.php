@@ -19,13 +19,26 @@ use \PDO;
  * @warning the reading_date attribute is either a DateTime object or null (if it hasn't been read)
  */
 function get_liked_notifications($uid) {
-    return [(object) array(
-        "type" => "liked",
-        "post" => \Model\Post\get(1),
-        "liked_by" => \Model\User\get(3),
-        "date" => new \DateTime("NOW"),
-        "reading_date" => new \DateTime("NOW")
-    )];
+  $db = \Db::dbc();
+
+  $notifs = [];
+
+  $query = $db->prepare("SELECT n.* FROM notification n NATURAL JOIN likeTweet NATURAL JOIN user u WHERE u.idUser = :uid");
+  $query->bindValue(":uid", $uid);
+  $query->execute();
+
+  while ($result = $query->fetch()) {
+      $notif = (object)array(
+          "type" => "liked",
+          "post" => \Model\Post\get($result["idTweet"]),
+          "liked_by" => \Model\User\get($result["liked_by"]),
+          "date" => $result["notif_date"],
+          "reading_date" => $result["reading_date"]
+      );
+      $notifs[] = $notif;
+  }
+
+  return $notifs;
 }
 
 /**
